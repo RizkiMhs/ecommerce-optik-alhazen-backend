@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/checkout', [\App\Http\Controllers\OrderController::class, 'store']);
     // 💡 ROUTE BARU: Mengambil daftar pesanan
     Route::get('/orders', [App\Http\Controllers\OrderController::class, 'index']);
+    Route::get('/orders/{id}/tracking', [App\Http\Controllers\OrderController::class, 'trackPackage']);
 
     // cek ongkir
     Route::post('/ongkir', [\App\Http\Controllers\OrderController::class, 'checkOngkir']);
@@ -61,3 +62,7 @@ Route::get('/lens-types', [\App\Http\Controllers\LensTypeController::class, 'ind
 
 // Route ini terbuka untuk Midtrans
 Route::post('/midtrans/callback', [App\Http\Controllers\OrderController::class, 'callback']);
+
+
+// Route untuk menerima webhook dari Biteship
+Route::post('/webhook/biteship', [App\Http\Controllers\BiteshipWebhookController::class, 'handle']);

@@ -130,25 +130,32 @@ class OrderController extends Controller
             $data = $response->json();
 
             // 💡 3. Format balasan dari RajaOngkir V2
+            // 💡 3. Format balasan dari RajaOngkir V2
             if (isset($data['meta']['code']) && $data['meta']['code'] == 200 && !empty($data['data'])) {
                 
-                // Kita ambil opsi pengiriman urutan pertama (biasanya REG / Reguler)
-                $kurirData = $data['data'][0];
+                $kurirData = null;
+
+                // 💡 LOGIKA BARU: Cari secara spesifik layanan "REG"
+                foreach ($data['data'] as $layanan) {
+                    if (strtoupper($layanan['service']) === 'REG') {
+                        $kurirData = $layanan;
+                        break; // Jika ketemu REG, langsung berhenti mencari
+                    }
+                }
+
+                // Jika layanan REG ternyata tidak ada di kota tersebut, 
+                // ambil opsi pertama sebagai cadangan (Fallback)
+                if ($kurirData === null) {
+                    $kurirData = $data['data'][0];
+                }
                 
                 return response()->json([
                     'status' => 'success',
-                    'courier' => strtoupper($kurirData['code']) . ' ' . $kurirData['service'], // Contoh output: "JNE REG"
+                    'courier' => strtoupper($kurirData['code']) . ' ' . $kurirData['service'],
                     'etd' => $kurirData['etd'],
                     'shipping_cost' => $kurirData['cost']
                 ]);
             }
-
-            // Jika kota tidak didukung atau ada error dari API
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Layanan pengiriman tidak tersedia ke kota ini.',
-                'debug' => $data // Ini agar jika error lagi, pesan aslinya bisa kita baca di Flutter
-            ], 400);
 
         } catch (\Exception $e) {
             return response()->json([
@@ -360,6 +367,59 @@ class OrderController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $orders
+        ]);
+    }
+
+    public function trackPackage($id)
+    {
+        $order = \App\Models\Order::find($id);
+
+        if (!$order || !$order->tracking_number) {
+            return response()->json(['status' => 'error', 'message' => 'Resi belum tersedia'], 404);
+        }
+
+        // 💡 SMART MOCKING: Buat riwayat berdasarkan status pesanan di Database
+        $mockHistory = [];
+
+        // 1. Jika pesanan sudah Selesai (Completed)
+        if ($order->status === 'completed') {
+            $mockHistory[] = [
+                "note" => "Paket telah diterima oleh Ybs.",
+                "updated_at" => date('c'),
+                "status" => "delivered"
+            ];
+            $mockHistory[] = [
+                "note" => "Paket sedang dibawa kurir menuju alamat tujuan",
+                "updated_at" => date('c', strtotime('-2 hours')),
+                "status" => "dropping_off"
+            ];
+        }
+
+        // 2. Jika pesanan sedang Dikirim (Shipping) ATAU sudah Selesai
+        if (in_array($order->status, ['shipping', 'completed'])) {
+            $mockHistory[] = [
+                "note" => "Paket telah tiba di gudang sortir kota tujuan",
+                "updated_at" => date('c', strtotime('-12 hours')),
+                "status" => "in_transit"
+            ];
+            $mockHistory[] = [
+                "note" => "Paket telah diserahkan ke pihak kurir " . strtoupper($order->courier),
+                "updated_at" => date('c', strtotime('-1 days')),
+                "status" => "picked_up"
+            ];
+            $mockHistory[] = [
+                "note" => "Paket telah dialokasikan, menunggu penjemputan oleh kurir",
+                "updated_at" => date('c', strtotime('-1 days -2 hours')),
+                "status" => "allocated"
+            ];
+        }
+
+        // Langsung kembalikan data pintar ini ke Flutter
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'history' => $mockHistory
+            ]
         ]);
     }
 }
