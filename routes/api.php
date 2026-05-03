@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LoginController;
 
+use App\Http\Controllers\ConsultationController;
+
 Route::post('register', [RegisterController::class, 'register']);
 Route::post('login', [LoginController::class, 'login']);
 
@@ -55,6 +57,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // orders
     
+    // 💡 ROUTE UNTUK FITUR CHAT KONSULTASI
+    Route::get('/consultation', [ConsultationController::class, 'getMessages']);
+    Route::post('/consultation', [ConsultationController::class, 'sendMessage']);
 
 });
 Route::get('/products', [\App\Http\Controllers\ProductController::class, 'index']);

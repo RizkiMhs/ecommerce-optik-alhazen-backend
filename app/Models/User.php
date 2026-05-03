@@ -52,4 +52,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(Address::class);
     }
+
+    // Tambahkan relasi ini di dalam class User
+    public function consultationMessages()
+    {
+        return $this->hasMany(ConsultationMessage::class);
+    }
 }
