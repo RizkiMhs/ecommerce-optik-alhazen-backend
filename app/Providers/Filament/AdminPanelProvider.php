@@ -29,12 +29,14 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('Optik Alhazen')
             ->id('admin')
             ->path('admin')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->login()
             ->brandLogo(asset('images/logo.png'))
             ->brandLogoHeight('60px')
             ->colors([
                 'primary' => Color::Indigo,
             ])
+            // ->viteTheme('resources/css/filament/admin/theme.css')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
@@ -43,7 +45,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
                 AccountWidget::class,
-                FilamentInfoWidget::class,
+                // FilamentInfoWidget::class,
             ])
             // ->topbarWidgets([
             //     \App\Filament\Widgets\HeaderStats::class,

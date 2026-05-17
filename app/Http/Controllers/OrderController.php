@@ -169,16 +169,14 @@ class OrderController extends Controller
 
     public function store(Request $request)
     {
-        // // 💡 1. CATAT APA YANG DITERIMA DARI FLUTTER
-        // Log::info('====== DATA DARI FLUTTER ======');
-        // Log::info($request->all());
         // 1. Validasi data yang dikirim dari Flutter
         $request->validate([
             'shipping_cost' => 'required|numeric',
             'courier' => 'required|string',
             'recipient_name' => 'required|string',
             'phone' => 'required|string',
-            'full_address' => 'required|string', // Alamat lengkap + kode pos
+            'full_address' => 'required|string', 
+            'payment_method' => 'nullable|string',
         ]);
 
         $user = Auth::user();
@@ -188,10 +186,20 @@ class OrderController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Keranjang kosong'], 400);
         }
 
+        // 💡 PERBAIKAN 1: CEK STOK SEBELUM MEMBUAT PESANAN
+        // Lakukan pengecekan sebelum masuk ke transaksi database
+        foreach ($carts as $cart) {
+            if ($cart->product->stock < $cart->qty) {
+                return response()->json([
+                    'status' => 'error', 
+                    'message' => 'Maaf, stok ' . $cart->product->name . ' tidak mencukupi. Sisa stok: ' . $cart->product->stock
+                ], 400);
+            }
+        }
+
         try {
             DB::beginTransaction();
 
-            // ... (Kodingan perhitungan Subtotal & Grand Total Anda tetap sama) ...
             $subtotal = 0;
             foreach ($carts as $cart) {
                 $basePrice = $cart->product->base_price;
@@ -217,7 +225,6 @@ class OrderController extends Controller
                 'courier' => $request->courier,
             ]);
 
-            // 2. Siapkan array untuk dikirim ke Midtrans (Harus sangat akurat harganya!)
             $item_details = [];
 
             // 3. Pindahkan Cart ke Order Items & Masukkan ke $item_details
@@ -226,7 +233,6 @@ class OrderController extends Controller
                 $lensPrice = $cart->lensType ? $cart->lensType->additional_price : 0;
                 $pricePerItem = $basePrice + $lensPrice;
 
-                // Urusan Database Kita
                 $prescriptionJson = null;
                 if ($cart->sph_right || $cart->sph_left || $cart->cyl_right || $cart->cyl_left || $cart->pd || $cart->note) {
                     $prescriptionJson = json_encode([
@@ -245,12 +251,16 @@ class OrderController extends Controller
                     'prescription_data' => $prescriptionJson,
                 ]);
 
+                // 💡 PERBAIKAN 2: KURANGI STOK PRODUK SECARA OTOMATIS
+                // Menggunakan fungsi bawaan decrement() dari Laravel
+                $cart->product->decrement('stock', $cart->qty);
+
                 // Urusan Midtrans: Masukkan barang ke nota Midtrans
                 $item_details[] = [
                     'id' => 'PRD-' . $cart->product_id,
                     'price' => (int) $pricePerItem,
                     'quantity' => $cart->qty,
-                    'name' => substr($cart->product->name, 0, 50) // Midtrans maksimal 50 huruf
+                    'name' => substr($cart->product->name, 0, 50) 
                 ];
             }
 
@@ -266,15 +276,16 @@ class OrderController extends Controller
             Carts::where('user_id', $user->id)->delete();
 
             // ==========================================
-            // 💡 BLOK INTEGRASI MIDTRANS (VERSI AMAN & STABIL)
+            // BLOK INTEGRASI MIDTRANS
             // ==========================================
-            
+            // ==========================================
+            // BLOK INTEGRASI MIDTRANS
+            // ==========================================
             Config::$serverKey = env('MIDTRANS_SERVER_KEY');
             Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
             Config::$isSanitized = true;
             Config::$is3ds = true;
 
-            // 💡 PARAMETER MIDTRANS (Tanpa pembatasan metode pembayaran)
             $params = [
                 'transaction_details' => [
                     'order_id' => $order->order_number,
@@ -286,14 +297,14 @@ class OrderController extends Controller
                     'email' => $user->email,
                 ],
                 'item_details' => $item_details,
-                // Kita biarkan kosong tanpa 'enabled_payments' agar Midtrans
-                // otomatis menampilkan semua opsi yang aktif di akun Anda.
             ];
 
-            // Minta Snap Token ke Midtrans
-            $snapToken = Snap::getSnapToken($params);
+            // 💡 FITUR BARU: Bypass ke metode pembayaran spesifik
+            if ($request->payment_method) {
+                $params['enabled_payments'] = [$request->payment_method];
+            }
 
-            // Simpan token tersebut ke database kita
+            $snapToken = Snap::getSnapToken($params);
             $order->update(['payment_token' => $snapToken]);
 
             DB::commit();
@@ -315,6 +326,7 @@ class OrderController extends Controller
     }
 
     // 💡 FUNGSI BARU: Menerima notifikasi otomatis dari Midtrans
+    // 💡 FUNGSI BARU: Menerima notifikasi otomatis dari Midtrans
     public function callback(Request $request)
     {
         $serverKey = env('MIDTRANS_SERVER_KEY');
@@ -323,8 +335,9 @@ class OrderController extends Controller
         $hashed = hash("sha512", $request->order_id . $request->status_code . $request->gross_amount . $serverKey);
         
         if ($hashed == $request->signature_key) {
-            // 2. Cari pesanan di database berdasarkan order_number dari Midtrans
-            $order = Order::where('order_number', $request->order_id)->first();
+            
+            // 💡 PERBAIKAN 1: Kita panggil juga relasi 'orderItems.product' agar bisa mengakses data stok barangnya
+            $order = Order::with('orderItems.product')->where('order_number', $request->order_id)->first();
             
             if ($order) {
                 // 3. Cek status transaksinya apa
@@ -334,8 +347,25 @@ class OrderController extends Controller
                     Log::info('Pesanan Lunas: ' . $order->order_number);
                 } 
                 else if ($request->transaction_status == 'cancel' || $request->transaction_status == 'deny' || $request->transaction_status == 'expire') {
-                    // Jika dibatalkan atau kadaluarsa
-                    $order->update(['status' => 'cancelled']);
+                    
+                    // 💡 PERBAIKAN 2: LOGIKA PENGEMBALIAN STOK (RESTOCK)
+                    // Pastikan kita hanya mengembalikan stok jika pesanan belum berstatus 'cancelled'
+                    // (Mencegah double-restock jika Midtrans mengirim notifikasi berulang kali)
+                    if ($order->status !== 'cancelled') {
+                        
+                        // Kembalikan stok untuk setiap barang di dalam pesanan ini
+                        foreach ($order->orderItems as $item) {
+                            // Gunakan increment() bawaan Laravel untuk menambah stok
+                            if ($item->product) {
+                                $item->product->increment('stock', $item->qty);
+                            }
+                        }
+
+                        // Setelah stok dikembalikan, baru ubah status pesanannya
+                        $order->update(['status' => 'cancelled']);
+                        Log::info('Pesanan Dibatalkan & Stok Dikembalikan: ' . $order->order_number);
+                    }
+
                 }
                 else if ($request->transaction_status == 'pending') {
                     // Jika masih menunggu pembayaran
@@ -421,5 +451,65 @@ class OrderController extends Controller
                 'history' => $mockHistory
             ]
         ]);
+    }
+
+    // 💡 FUNGSI BARU: Membatalkan pesanan secara manual oleh User
+    // Tambahkan ini di bagian atas file jika belum ada:
+    // use Midtrans\Config;
+    // use Midtrans\Transaction;
+
+    public function cancelOrder($id)
+    {
+        $user = Auth::user();
+        
+        // Cari pesanan berdasarkan ID
+        $order = Order::with('orderItems.product')->where('id', $id)->where('user_id', $user->id)->first();
+
+        if (!$order) {
+            return response()->json(['status' => 'error', 'message' => 'Pesanan tidak ditemukan'], 404);
+        }
+
+        if ($order->status !== 'unpaid') {
+            return response()->json(['status' => 'error', 'message' => 'Pesanan ini sudah tidak dapat dibatalkan'], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            // 1. KEMBALIKAN STOK (RESTOCK)
+            foreach ($order->orderItems as $item) {
+                if ($item->product) {
+                    $item->product->increment('stock', $item->qty);
+                }
+            }
+
+            // 2. UBAH STATUS PESANAN DI DATABASE KITA
+            $order->update(['status' => 'cancelled']);
+
+            // 💡 3. BATALKAN SECARA PAKSA DI SERVER MIDTRANS
+            Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+            Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
+            
+            try {
+                // Tembak API Midtrans untuk membatalkan tagihan berdasarkan order_number
+                \Midtrans\Transaction::cancel($order->order_number);
+            } catch (\Exception $e) {
+                // Terkadang Midtrans error jika tagihan belum pernah di-klik sama sekali oleh user.
+                // Kita biarkan saja (catch) agar aplikasi tidak crash, karena yang terpenting
+                // pesanan di database kita sudah berhasil dibatalkan.
+                Log::warning('Gagal membatalkan di Midtrans (mungkin belum terbentuk di sisi mereka): ' . $e->getMessage());
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success', 
+                'message' => 'Pesanan berhasil dibatalkan dan tagihan telah dihapus'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Cancel Order Error: ' . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'Gagal membatalkan pesanan'], 500);
+        }
     }
 }

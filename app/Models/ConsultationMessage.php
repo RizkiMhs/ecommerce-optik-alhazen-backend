@@ -15,6 +15,7 @@ class ConsultationMessage extends Model
         'user_id',
         'message',
         'is_admin',
+        'image',
     ];
 
     // Relasi balik ke model User

@@ -47,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/checkout', [\App\Http\Controllers\OrderController::class, 'store']);
     // 💡 ROUTE BARU: Mengambil daftar pesanan
     Route::get('/orders', [App\Http\Controllers\OrderController::class, 'index']);
+    Route::post('/orders/{id}/cancel', [App\Http\Controllers\OrderController::class, 'cancelOrder']);
     Route::get('/orders/{id}/tracking', [App\Http\Controllers\OrderController::class, 'trackPackage']);
 
     // cek ongkir

@@ -65,15 +65,15 @@ class OrdersTable
 
             ->filters([
                 // 💡 FITUR BARU: Filter Dropdown untuk menyaring status
-                SelectFilter::make('status')
-                    ->label('Filter Status')
-                    ->options([
-                        'unpaid' => 'Unpaid (Belum Bayar)',
-                        'paid' => 'Paid (Sudah Bayar)',
-                        'processing' => 'Processing (Diproses)',
-                        'shipping' => 'Shipping (Dikirim)',
-                        'completed' => 'Completed (Selesai)',
-                    ]),
+                // SelectFilter::make('status')
+                //     ->label('Filter Status')
+                //     ->options([
+                //         'unpaid' => 'Unpaid (Belum Bayar)',
+                //         'paid' => 'Paid (Sudah Bayar)',
+                //         'processing' => 'Processing (Diproses)',
+                //         'shipping' => 'Shipping (Dikirim)',
+                //         'completed' => 'Completed (Selesai)',
+                //     ]),
             ])
 
             ->recordActions([
@@ -82,9 +82,9 @@ class OrdersTable
                     ->color('info'),
 
                 // 💡 BUG FIXED: Tambahkan EditAction agar Form yang kita buat tadi bisa dibuka!
-                EditAction::make()
-                    ->label('Update Resi/Status')
-                    ->color('primary'),
+                // EditAction::make()
+                //     ->label('Update Resi/Status')
+                //     ->color('primary'),
 
                 // 
 

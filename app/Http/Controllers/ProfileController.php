@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -15,16 +16,27 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        // 💡 Tambahkan validasi untuk old_password
         $request->validate([
             'name' => 'required',
             'phone' => 'nullable',
-            'password' => 'nullable|min:6'
+            'old_password' => 'nullable|string',
+            'password' => 'nullable'
         ]);
 
         $user->name = $request->name;
         $user->phone = $request->phone;
 
+        // Jika user mengisi password baru
         if ($request->password) {
+            // 💡 Cek apakah password lama yang dimasukkan cocok dengan yang di database
+            if (!Hash::check($request->old_password, $user->password)) {
+                return response()->json([
+                    'message' => 'Password lama tidak sesuai!'
+                ], 400); // 400 = Bad Request (Gagal)
+            }
+
+            // Jika cocok, baru ubah ke password baru
             $user->password = Hash::make($request->password);
         }
 

@@ -15,14 +15,11 @@ class OrderForm
     public static function configure(Schema $schema): Schema
     {
         return $schema
-            // Kita atur kolom langsung di root schema (Cara paling rapi di Filament)
-            ->columns(['default' => 1, 'lg' => 3]) 
+            // 💡 PERBAIKAN: Hapus pembagian kolom root, biarkan mengalir secara default (full)
             ->components([
                 
-                // --- KOTAK KIRI: INFORMASI PESANAN ---
-                // 💡 PERBAIKAN: Menggunakan 'lg' => 2 agar hanya membelah di layar yang benar-benar lebar
+                // --- KOTAK INFORMASI PESANAN (Sekarang Tampil Penuh/Full Width) ---
                 Section::make('Informasi Pesanan')
-                    ->columnSpan(['default' => 1, 'lg' => 2])
                     ->schema([
                         TextInput::make('order_number')
                             ->label('Nomor Pesanan')
@@ -69,28 +66,7 @@ class OrderForm
                             ->columnSpanFull(),
                     ]),
 
-                // --- KOTAK KANAN: UPDATE PENGIRIMAN ---
-                Section::make('Update Pengiriman')
-                    ->columnSpan(['default' => 1, 'lg' => 1])
-                    ->schema([
-                        Select::make('status')
-                            ->label('Status Pesanan')
-                            ->options([
-                                'unpaid' => 'Belum Bayar',
-                                'paid' => 'Sudah Bayar',
-                                'processing' => 'Diproses',
-                                'shipping' => 'Dikirim',
-                                'completed' => 'Selesai',
-                                'cancelled' => 'Dibatalkan',
-                            ])
-                            ->default('unpaid')
-                            // 💡 PERBAIKAN: Hapus native(false) agar dropdown menggunakan tampilan bawaan browser yang tidak akan pernah merusak teks panjang
-                            ->required(),
-
-                        TextInput::make('tracking_number')
-                            ->label('Nomor Resi')
-                            ->placeholder('Misal: JNE12345...'),
-                    ]),
+                // 💡 Kotak "Update Pengiriman" sudah dihapus total!
 
             ]);
     }

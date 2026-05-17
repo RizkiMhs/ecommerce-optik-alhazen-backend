@@ -70,10 +70,17 @@ class AddressController extends Controller
 
             if (isset($data['data']) && is_array($data['data'])) {
                 $formattedCities = collect($data['data'])->map(function ($city) {
+                    
+                    // 💡 BARU: Mencoba mengambil kode pos (5 angka terakhir di string label)
+                    $postalCode = '';
+                    if (isset($city['label']) && preg_match('/(\d{5})$/', trim($city['label']), $matches)) {
+                        $postalCode = $matches[1];
+                    }
+
                     return [
-                        // 💡 Gunakan ID dan Label (karena RajaOngkir V2 biasanya pakai 'label')
                         'id' => $city['id'] ?? null,
                         'name' => $city['label'] ?? $city['name'] ?? 'Tanpa Nama',
+                        'postal_code' => $postalCode, // 💡 Kirim kode pos ini ke Flutter
                     ];
                 });
 

@@ -1,0 +1,7 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+/* 💡 TAMBAHKAN BARIS INI AGAR DESAIN LOGIN TERBACA OLEH TAILWIND */
+@source '../../../../resources/views/vendor/filament-panels/**/*';

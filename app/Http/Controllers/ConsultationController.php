@@ -32,23 +32,29 @@ class ConsultationController extends Controller
     // 2. FUNGSI UNTUK MENGIRIM PESAN BARU DARI APP FLUTTER
     public function sendMessage(Request $request)
     {
-        // Validasi pesannya tidak boleh kosong
-        $request->validate([
-            'message' => 'required|string'
+       $request->validate([
+            'message' => 'nullable|string', // Boleh kosong jika hanya kirim gambar
+            'image' => 'nullable|image|mimes:jpeg,png,jpg', // Maksimal 2MB
         ]);
 
-        $user = Auth::user();
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            // Simpan gambar ke folder storage/app/public/chat_images
+            $imagePath = $request->file('image')->store('chat_images', 'public');
+        }
 
-        // Simpan ke database
         $message = ConsultationMessage::create([
-            'user_id' => $user->id,
-            'message' => $request->message,
-            'is_admin' => false, // Selalu false karena ini API untuk Kustomer
+            'user_id' => Auth::id(), // Sesuaikan dengan cara auth Anda
+            'message' => $request->message ?? '',
+            'image' => $imagePath,
+            'is_admin' => false,
         ]);
+
+        // (Opsional) Tambahkan full URL gambar agar mudah dibaca Flutter
+        $message->image_url = $imagePath ? asset('storage/' . $imagePath) : null;
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Pesan berhasil terkirim',
             'data' => $message
         ]);
     }
