@@ -88,6 +88,30 @@ class OrdersTable
 
                 // 
 
+                Action::make('proses_pesanan')
+                    ->label('Proses Pesanan')
+                    ->icon('heroicon-o-cog-8-tooth') // Ikon gerigi (proses)
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Mulai Proses Pesanan?')
+                    ->modalDescription('Status pesanan akan diubah menjadi "Diproses" dan teknisi bisa mulai merakit kacamata.')
+                    ->modalSubmitActionLabel('Ya, Proses Sekarang')
+                    ->action(function (Order $record) {
+                        // Mengubah status menjadi processing
+                        $record->update([
+                            'status' => 'processing'
+                        ]);
+
+                        // Menampilkan notifikasi sukses
+                        \Filament\Notifications\Notification::make()
+                            ->title('Pesanan Mulai Diproses!')
+                            ->body('Pesanan telah dipindahkan ke tab Diproses.')
+                            ->success()
+                            ->send();
+                    })
+                    // 💡 PENTING: Tombol ini HANYA muncul jika statusnya 'paid' (Sudah Bayar)
+                    ->visible(fn(Order $record) => $record->status === 'paid'),
+
                 Action::make('cetak_label')
                     ->label('Panggil Kurir (Biteship)')
                     ->icon('heroicon-o-truck')
@@ -108,7 +132,7 @@ class OrdersTable
                         // Skenario A: Cari angka 5 digit berturut-turut
                         if (preg_match('/\b\d{5}\b/', $teksAlamat, $matches)) {
                             $kodeposTujuan = (int) $matches[0];
-                        } 
+                        }
                         // Skenario B: Cari angka setelah tulisan "Kode Pos:"
                         elseif (preg_match('/Kode Pos:\s*(\d+)/i', $teksAlamat, $matches)) {
                             $kodeposTujuan = (int) $matches[1];
@@ -123,14 +147,14 @@ class OrdersTable
                             "origin_contact_name" => "Optik Alhazen",
                             "origin_contact_phone" => "082352306497",
                             "origin_address" => "jalan medan-banda aceh kuta blang bireuen, Kuta Blang, Bireuen, Nanggroe Aceh Darussalam (NAD)",
-                            "origin_postal_code" => 24358, 
+                            "origin_postal_code" => 24358,
 
                             // --- DATA PELANGGAN ---
                             "destination_contact_name" => $alamat['name'] ?? 'Pelanggan',
                             "destination_contact_phone" => $alamat['phone'] ?? '081200000000',
                             "destination_address" => $teksAlamat,
                             "destination_postal_code" => $kodeposTujuan, // 💡 Sudah Otomatis!
-                            
+
                             // --- LAYANAN KURIR ---
                             // "courier_company" => $record->courier ?? "jnt", // Ambil dari DB, default J&T
                             // "courier_type" => "ez", // Layanan standar J&T
@@ -140,7 +164,7 @@ class OrdersTable
                             "courier_company" => "jne", // 💡 Ubah ke jne
                             "courier_type" => "reg",    // 💡 Ubah ke reg
                             "delivery_type" => "now",
-                            
+
                             // --- DATA BARANG ---
                             "items" => [
                                 [
@@ -161,7 +185,7 @@ class OrdersTable
                         // 5. Proses Hasilnya
                         if ($response->successful()) {
                             $data = $response->json();
-                            
+
                             $record->update([
                                 'tracking_number' => $data['courier']['waybill_id'],
                                 'biteship_order_id' => $data['id'],
@@ -181,7 +205,7 @@ class OrdersTable
                                 ->send();
                         }
                     })
-                    ->visible(fn (Order $record) => $record->status === 'processing'),
+                    ->visible(fn(Order $record) => $record->status === 'processing'),
             ])
 
             ->toolbarActions([
