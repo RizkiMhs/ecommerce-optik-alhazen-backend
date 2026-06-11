@@ -107,12 +107,12 @@ class OrderController extends Controller
     }
     // 💡 FUNGSI BARU: Cek Ongkos Kirim
     // 
-    
+
 
     public function checkOngkir(Request $request)
     {
         $request->validate([
-            'destination_city_id' => 'required', 
+            'destination_city_id' => 'required',
         ]);
 
         try {
@@ -124,7 +124,7 @@ class OrderController extends Controller
                 'origin'      => env('RAJAONGKIR_ORIGIN_CITY'), // 11 (Aceh Utara)
                 'destination' => $request->destination_city_id,
                 'weight'      => 500, // 500 gram
-                'courier'     => 'jne' 
+                'courier'     => 'jne'
             ]);
 
             $data = $response->json();
@@ -132,7 +132,7 @@ class OrderController extends Controller
             // 💡 3. Format balasan dari RajaOngkir V2
             // 💡 3. Format balasan dari RajaOngkir V2
             if (isset($data['meta']['code']) && $data['meta']['code'] == 200 && !empty($data['data'])) {
-                
+
                 $kurirData = null;
 
                 // 💡 LOGIKA BARU: Cari secara spesifik layanan "REG"
@@ -148,7 +148,7 @@ class OrderController extends Controller
                 if ($kurirData === null) {
                     $kurirData = $data['data'][0];
                 }
-                
+
                 return response()->json([
                     'status' => 'success',
                     'courier' => strtoupper($kurirData['code']) . ' ' . $kurirData['service'],
@@ -156,7 +156,6 @@ class OrderController extends Controller
                     'shipping_cost' => $kurirData['cost']
                 ]);
             }
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
@@ -175,12 +174,18 @@ class OrderController extends Controller
             'courier' => 'required|string',
             'recipient_name' => 'required|string',
             'phone' => 'required|string',
-            'full_address' => 'required|string', 
+            'full_address' => 'required|string',
             'payment_method' => 'nullable|string',
+            'cart_ids' => 'required|array|min:1',
+            'cart_ids.*' => 'integer|exists:carts,id',
+            'voucher_code' => 'nullable|string', // 💡 TAMBAHAN: Validasi kode voucher
         ]);
 
         $user = Auth::user();
-        $carts = Carts::where('user_id', $user->id)->with(['product', 'lensType'])->get();
+        $carts = Carts::where('user_id', $user->id)
+            ->whereIn('id', $request->cart_ids)
+            ->with(['product', 'lensType'])
+            ->get();
 
         if ($carts->isEmpty()) {
             return response()->json(['status' => 'error', 'message' => 'Keranjang kosong'], 400);
@@ -191,7 +196,7 @@ class OrderController extends Controller
         foreach ($carts as $cart) {
             if ($cart->product->stock < $cart->qty) {
                 return response()->json([
-                    'status' => 'error', 
+                    'status' => 'error',
                     'message' => 'Maaf, stok ' . $cart->product->name . ' tidak mencukupi. Sisa stok: ' . $cart->product->stock
                 ], 400);
             }
@@ -206,7 +211,29 @@ class OrderController extends Controller
                 $lensPrice = $cart->lensType ? $cart->lensType->additional_price : 0;
                 $subtotal += ($basePrice + $lensPrice) * $cart->qty;
             }
-            $totalAmount = $subtotal + $request->shipping_cost;
+
+            // 💡 TAMBAHAN: LOGIKA HITUNG DISKON VOUCHER
+            $discountAmount = 0;
+            $voucherCode = $request->voucher_code;
+
+            if ($voucherCode) {
+                $voucher = \App\Models\Voucher::where('code', $voucherCode)->where('is_active', true)->first();
+
+                if ($voucher) {
+                    if ($voucher->discount_type === 'percent') {
+                        $discountAmount = ($subtotal * $voucher->discount_value) / 100;
+                    } else {
+                        $discountAmount = $voucher->discount_value;
+                    }
+                    // Jaga-jaga agar diskon tidak melebihi total belanja produk
+                    if ($discountAmount > $subtotal) {
+                        $discountAmount = $subtotal;
+                    }
+                }
+            }
+
+            // 💡 UPDATE: Perhitungan Grand Total sekarang dikurangi diskon
+            $totalAmount = ($subtotal - $discountAmount) + $request->shipping_cost;
 
             $addressSnapshot = json_encode([
                 'name' => $request->recipient_name,
@@ -218,11 +245,13 @@ class OrderController extends Controller
             $order = Order::create([
                 'user_id' => $user->id,
                 'order_number' => 'ORD-' . date('Ymd') . '-' . strtoupper(uniqid()),
-                'total_amount' => $totalAmount,
+                'total_amount' => $totalAmount, // Sudah dipotong diskon
                 'shipping_cost' => $request->shipping_cost,
                 'status' => 'unpaid',
                 'address_snapshot' => $addressSnapshot,
                 'courier' => $request->courier,
+                'voucher_code' => $voucherCode, // 💡 Simpan kode yang dipakai
+                'discount_amount' => $discountAmount, // 💡 Simpan nominal diskon
             ]);
 
             $item_details = [];
@@ -236,19 +265,25 @@ class OrderController extends Controller
                 $prescriptionJson = null;
                 if ($cart->sph_right || $cart->sph_left || $cart->cyl_right || $cart->cyl_left || $cart->pd || $cart->note) {
                     $prescriptionJson = json_encode([
-                        'sph_right' => $cart->sph_right, 'cyl_right' => $cart->cyl_right, 'axis_right' => $cart->axis_right,
-                        'sph_left' => $cart->sph_left, 'cyl_left' => $cart->cyl_left, 'axis_left' => $cart->axis_left,
-                        'pd' => $cart->pd, 'note' => $cart->note,
+                        'sph_right' => $cart->sph_right,
+                        'cyl_right' => $cart->cyl_right,
+                        'axis_right' => $cart->axis_right,
+                        'sph_left' => $cart->sph_left,
+                        'cyl_left' => $cart->cyl_left,
+                        'axis_left' => $cart->axis_left,
+                        'pd' => $cart->pd,
+                        'note' => $cart->note,
                     ]);
                 }
 
-                OrderItem::create([
+                \App\Models\OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $cart->product_id,
                     'lens_type_id' => $cart->lens_type_id,
                     'price_at_purchase' => $pricePerItem,
                     'qty' => $cart->qty,
                     'prescription_data' => $prescriptionJson,
+                    'prescription_image' => $cart->prescription_image,
                 ]);
 
                 // 💡 PERBAIKAN 2: KURANGI STOK PRODUK SECARA OTOMATIS
@@ -260,7 +295,7 @@ class OrderController extends Controller
                     'id' => 'PRD-' . $cart->product_id,
                     'price' => (int) $pricePerItem,
                     'quantity' => $cart->qty,
-                    'name' => substr($cart->product->name, 0, 50) 
+                    'name' => substr($cart->product->name, 0, 50)
                 ];
             }
 
@@ -272,19 +307,29 @@ class OrderController extends Controller
                 'name' => 'Ongkir ' . $request->courier
             ];
 
+            // 💡 TAMBAHAN: Masukkan Diskon ke dalam nota Midtrans (Wajib agar total perhitungan Midtrans cocok)
+            if ($discountAmount > 0) {
+                $item_details[] = [
+                    'id' => 'DISCOUNT',
+                    'price' => -(int) $discountAmount, // Kasih minus di depannya
+                    'quantity' => 1,
+                    'name' => 'Diskon Promo'
+                ];
+            }
+
             // 5. Kosongkan Keranjang
-            Carts::where('user_id', $user->id)->delete();
+            // 5. Hapus hanya item keranjang yang dicheckout
+            Carts::where('user_id', $user->id)
+                ->whereIn('id', $request->cart_ids)
+                ->delete();
 
             // ==========================================
             // BLOK INTEGRASI MIDTRANS
             // ==========================================
-            // ==========================================
-            // BLOK INTEGRASI MIDTRANS
-            // ==========================================
-            Config::$serverKey = env('MIDTRANS_SERVER_KEY');
-            Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
-            Config::$isSanitized = true;
-            Config::$is3ds = true;
+            \Midtrans\Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+            \Midtrans\Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
+            \Midtrans\Config::$isSanitized = true;
+            \Midtrans\Config::$is3ds = true;
 
             $params = [
                 'transaction_details' => [
@@ -304,7 +349,7 @@ class OrderController extends Controller
                 $params['enabled_payments'] = [$request->payment_method];
             }
 
-            $snapToken = Snap::getSnapToken($params);
+            $snapToken = \Midtrans\Snap::getSnapToken($params);
             $order->update(['payment_token' => $snapToken]);
 
             DB::commit();
@@ -315,12 +360,11 @@ class OrderController extends Controller
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
                 'total_amount' => $order->total_amount,
-                'payment_token' => $snapToken 
+                'payment_token' => $snapToken
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Checkout Error: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Checkout Error: ' . $e->getMessage());
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
@@ -330,29 +374,28 @@ class OrderController extends Controller
     public function callback(Request $request)
     {
         $serverKey = env('MIDTRANS_SERVER_KEY');
-        
+
         // 1. Keamanan: Pastikan pesan ini benar-benar dari Midtrans (bukan hacker)
         $hashed = hash("sha512", $request->order_id . $request->status_code . $request->gross_amount . $serverKey);
-        
+
         if ($hashed == $request->signature_key) {
-            
+
             // 💡 PERBAIKAN 1: Kita panggil juga relasi 'orderItems.product' agar bisa mengakses data stok barangnya
             $order = Order::with('orderItems.product')->where('order_number', $request->order_id)->first();
-            
+
             if ($order) {
                 // 3. Cek status transaksinya apa
                 if ($request->transaction_status == 'capture' || $request->transaction_status == 'settlement') {
                     // Jika sukses dibayar
                     $order->update(['status' => 'paid']);
                     Log::info('Pesanan Lunas: ' . $order->order_number);
-                } 
-                else if ($request->transaction_status == 'cancel' || $request->transaction_status == 'deny' || $request->transaction_status == 'expire') {
-                    
+                } else if ($request->transaction_status == 'cancel' || $request->transaction_status == 'deny' || $request->transaction_status == 'expire') {
+
                     // 💡 PERBAIKAN 2: LOGIKA PENGEMBALIAN STOK (RESTOCK)
                     // Pastikan kita hanya mengembalikan stok jika pesanan belum berstatus 'cancelled'
                     // (Mencegah double-restock jika Midtrans mengirim notifikasi berulang kali)
                     if ($order->status !== 'cancelled') {
-                        
+
                         // Kembalikan stok untuk setiap barang di dalam pesanan ini
                         foreach ($order->orderItems as $item) {
                             // Gunakan increment() bawaan Laravel untuk menambah stok
@@ -365,14 +408,12 @@ class OrderController extends Controller
                         $order->update(['status' => 'cancelled']);
                         Log::info('Pesanan Dibatalkan & Stok Dikembalikan: ' . $order->order_number);
                     }
-
-                }
-                else if ($request->transaction_status == 'pending') {
+                } else if ($request->transaction_status == 'pending') {
                     // Jika masih menunggu pembayaran
                     $order->update(['status' => 'unpaid']);
                 }
             }
-            
+
             // Beri tahu Midtrans bahwa pesan sudah kita terima dengan baik
             return response()->json(['message' => 'Callback diterima']);
         }
@@ -461,7 +502,7 @@ class OrderController extends Controller
     public function cancelOrder($id)
     {
         $user = Auth::user();
-        
+
         // Cari pesanan berdasarkan ID
         $order = Order::with('orderItems.product')->where('id', $id)->where('user_id', $user->id)->first();
 
@@ -488,7 +529,7 @@ class OrderController extends Controller
             // 💡 3. BATALKAN SECARA PAKSA DI SERVER MIDTRANS
             Config::$serverKey = env('MIDTRANS_SERVER_KEY');
             Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
-            
+
             try {
                 // Tembak API Midtrans untuk membatalkan tagihan berdasarkan order_number
                 \Midtrans\Transaction::cancel($order->order_number);
@@ -502,10 +543,9 @@ class OrderController extends Controller
             DB::commit();
 
             return response()->json([
-                'status' => 'success', 
+                'status' => 'success',
                 'message' => 'Pesanan berhasil dibatalkan dan tagihan telah dihapus'
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Cancel Order Error: ' . $e->getMessage());

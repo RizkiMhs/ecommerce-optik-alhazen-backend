@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Models\Address;
+use App\Models\DomesticDestination;
+use Illuminate\Support\Facades\Cache;
 
 class AddressController extends Controller
 {
@@ -99,4 +101,43 @@ class AddressController extends Controller
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
+
+//     public function getCities(Request $request)
+// {
+//     try {
+//         $search = trim($request->query('search', ''));
+//         $cacheKey = 'cities_search_' . md5(strtolower($search));
+
+//         $cities = Cache::remember($cacheKey, now()->addDays(7), function () use ($search) {
+//             return DomesticDestination::query()
+//                 ->when($search !== '', function ($query) use ($search) {
+//                     $query->where('label', 'like', '%' . $search . '%')
+//                         ->orWhere('province_name', 'like', '%' . $search . '%')
+//                         ->orWhere('city_name', 'like', '%' . $search . '%')
+//                         ->orWhere('district_name', 'like', '%' . $search . '%')
+//                         ->orWhere('subdistrict_name', 'like', '%' . $search . '%')
+//                         ->orWhere('postal_code', 'like', '%' . $search . '%');
+//                 })
+//                 ->limit(50)
+//                 ->get()
+//                 ->map(function ($city) {
+//                     return [
+//                         'id' => $city->rajaongkir_id,
+//                         'name' => $city->label,
+//                         'postal_code' => $city->postal_code,
+//                     ];
+//                 });
+//         });
+
+//         return response()->json([
+//             'status' => 'success',
+//             'data' => $cities,
+//         ]);
+//     } catch (\Exception $e) {
+//         return response()->json([
+//             'status' => 'error',
+//             'message' => $e->getMessage(),
+//         ], 500);
+//     }
+// }
 }

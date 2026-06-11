@@ -28,6 +28,8 @@ class CartController extends Controller
             'axis_left'    => 'nullable|string', // Tambahan sesuai struktur migration terbaru
             'pd'           => 'nullable|string',
             'note'         => 'nullable|string|max:500',
+
+            'prescription_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -36,6 +38,15 @@ class CartController extends Controller
                 'message' => 'Data tidak valid',
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        // 💡 TAMBAHAN: Logika Upload File
+        $imagePath = null;
+        if ($request->hasFile('prescription_image')) {
+            $image = $request->file('prescription_image');
+            $imageName = time() . '_resep.' . $image->getClientOriginalExtension();
+            // Akan tersimpan di folder storage/app/public/prescription-images
+            $imagePath = $image->storeAs('prescription-images', $imageName, 'public'); 
         }
 
         // 2. Simpan ke Database dengan perlindungan Try-Catch
@@ -57,6 +68,7 @@ class CartController extends Controller
                 'axis_left'    => $request->axis_left,
                 'pd'           => $request->pd,
                 'note'         => $request->note,
+                'prescription_image' => $imagePath,
             ]);
 
             // 3. Berikan response sukses ke Flutter (Code 201: Created)
