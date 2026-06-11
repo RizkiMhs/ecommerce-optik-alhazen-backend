@@ -9,6 +9,8 @@ use App\Http\Controllers\Auth\LoginController;
 
 use App\Http\Controllers\ConsultationController;
 
+use App\Http\Controllers\VoucherController;
+
 Route::post('register', [RegisterController::class, 'register']);
 Route::post('login', [LoginController::class, 'login']);
 
@@ -57,11 +59,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/cities', [\App\Http\Controllers\AddressController::class, 'getCities']);
 
     // orders
-    
+
     // 💡 ROUTE UNTUK FITUR CHAT KONSULTASI
     Route::get('/consultation', [ConsultationController::class, 'getMessages']);
     Route::post('/consultation', [ConsultationController::class, 'sendMessage']);
 
+    // ... rute lainnya
+    Route::get('/vouchers', [VoucherController::class, 'index']);
+    Route::post('/vouchers/verify', [VoucherController::class, 'verify']);
 });
 Route::get('/products', [\App\Http\Controllers\ProductController::class, 'index']);
 Route::get('/lens-types', [\App\Http\Controllers\LensTypeController::class, 'index']);
