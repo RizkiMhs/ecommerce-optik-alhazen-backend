@@ -30,49 +30,59 @@ class UserResource extends Resource
     protected static ?string $pluralModelLabel = 'Daftar Pengguna';
 
     public static function form(Schema $schema): Schema
-    {
-        return $schema
-            ->components([
-                Section::make('Informasi Pengguna')
-                    ->schema([
-                        TextInput::make('name')
-                            ->label('Nama Lengkap')
-                            ->required()
-                            ->maxLength(255),
+{
+    return $schema
+        ->columns(1)
+        ->components([
+            Section::make('Informasi Pengguna')
+                ->schema([
+                    TextInput::make('name')
+                        ->label('Nama Lengkap')
+                        ->required()
+                        ->maxLength(255),
 
-                        TextInput::make('email')
-                            ->label('Email')
-                            ->email()
-                            ->required()
-                            ->maxLength(255)
-                            ->unique(ignoreRecord: true),
+                    TextInput::make('email')
+                        ->label('Email')
+                        ->email()
+                        ->required()
+                        ->maxLength(255)
+                        ->unique(ignoreRecord: true),
 
-                        TextInput::make('phone')
-                            ->label('Nomor HP')
-                            ->tel()
-                            ->maxLength(255),
+                    TextInput::make('phone')
+                        ->label('Nomor HP')
+                        ->tel()
+                        ->maxLength(255),
 
-                        Select::make('role')
-                            ->label('Hak Akses')
-                            ->options([
-                                'admin' => 'Admin (Pengelola)',
-                                'customer' => 'Customer (Pelanggan)',
-                            ])
-                            ->required()
-                            ->default('customer'),
+                    Select::make('role')
+                        ->label('Hak Akses')
+                        ->options([
+                            'admin' => 'Admin (Pengelola)',
+                            'customer' => 'Customer (Pelanggan)',
+                        ])
+                        ->required()
+                        ->default('customer'),
 
-                        TextInput::make('password')
-                            ->label('Password')
-                            ->password()
-                            ->revealable()
-                            ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? Hash::make($state) : null)
-                            ->dehydrated(fn (?string $state): bool => filled($state))
-                            ->required(fn (string $operation): bool => $operation === 'create')
-                            ->helperText('Kosongkan jika tidak ingin mengubah password saat edit.'),
-                    ])
-                    ->columns(2),
-            ]);
-    }
+                    TextInput::make('password')
+                        ->label('Password')
+                        ->password()
+                        ->revealable()
+                        ->confirmed()
+                        ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? Hash::make($state) : null)
+                        ->dehydrated(fn (?string $state): bool => filled($state))
+                        ->required(fn (string $operation): bool => $operation === 'create')
+                        ->helperText('Kosongkan jika tidak ingin mengubah password saat edit.'),
+
+                    TextInput::make('password_confirmation')
+                        ->label('Konfirmasi Password')
+                        ->password()
+                        ->revealable()
+                        ->requiredWith('password')
+                        ->dehydrated(false),
+                ])
+                ->columns(1)
+                ->columnSpanFull(),
+        ]);
+}
 
     public static function table(Table $table): Table
     {
