@@ -78,7 +78,7 @@ class OrdersTable
 
             ->recordActions([
                 ViewAction::make()
-                    ->label('Lihat Resep')
+                    ->label('Lihat Detail')
                     ->color('info'),
 
                 // 💡 BUG FIXED: Tambahkan EditAction agar Form yang kita buat tadi bisa dibuka!

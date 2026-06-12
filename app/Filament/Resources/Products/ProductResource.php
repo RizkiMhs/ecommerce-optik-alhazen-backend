@@ -21,6 +21,11 @@ class ProductResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCube;
 
     protected static ?string $recordTitleAttribute = 'name';
+    protected static ?string $navigationLabel = 'Produk';
+
+    protected static ?string $modelLabel = 'Produk';
+
+    protected static ?string $pluralModelLabel = 'Produk';
 
     public static function form(Schema $schema): Schema
     {

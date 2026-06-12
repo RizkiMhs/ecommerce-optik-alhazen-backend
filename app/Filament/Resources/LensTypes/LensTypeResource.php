@@ -22,6 +22,12 @@ class LensTypeResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'lens_name';
 
+    protected static ?string $navigationLabel = 'Jenis Lensa';
+
+    protected static ?string $modelLabel = 'Jenis Lensa';
+
+    protected static ?string $pluralModelLabel = 'Jenis Lensa';
+
     public static function form(Schema $schema): Schema
     {
         return LensTypeForm::configure($schema);

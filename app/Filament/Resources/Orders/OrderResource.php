@@ -24,6 +24,12 @@ class OrderResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'order_number';
 
+    protected static ?string $navigationLabel = 'Pesanan';
+
+protected static ?string $modelLabel = 'Pesanan';
+
+protected static ?string $pluralModelLabel = 'Pesanan';
+
     public static function form(Schema $schema): Schema
     {
         return OrderForm::configure($schema);
